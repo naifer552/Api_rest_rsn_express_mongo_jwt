@@ -1,3 +1,4 @@
+import { generateRefreshToken, generateToken } from "../middlewares/tokenManager.js";
 import { User } from "../models/User.js";
 
 const users = async (req, res) => {
@@ -12,7 +13,7 @@ const users = async (req, res) => {
 const user = async (req, res) => {
     const { id } = req.params;
     try {
-        const user = await User.findById(id);
+        const user = await User.findById(id).lean();
         res.json(user);
     } catch (error) {
         return res.status(500).json({error: "Error de server"});
@@ -24,7 +25,8 @@ const register = async (req, res) => {
     try {
         const newUser = new User({ email, user, password, repassword });
         await newUser.save();
-        console.log(newUser);
+        const { token, expiresIn } = generateToken(user.id);
+        generateRefreshToken(newUser.id, res);
         return res.status(201).json({ ok: true });
 
     } catch (error) {
@@ -53,11 +55,30 @@ const login = async(req, res) => {
         if(!respuestaPassword){
             return res.status(403).json({ error: "Contraseña incorrecta" });
         }
-        console.log({ email, password });
-        return res.json({ ok: true });
+        const { token, expiresIn } = generateToken(user.id);
+        return res.status(200).json({token, expiresIn});
     } catch (error) {
         console.log(error);
-    }
-}
+    };
+};
 
-export { user, users, register, login };
+const refreshToken = (req, res) => {
+    try {
+        const { token, expiresIn } = generateToken(req.uid);
+        return res.status(200).json({token, expiresIn});
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({error: "Error de server"});
+    }
+};
+
+const logout = (req, res) => {
+    try {
+        res.clearCookie('refreshToken');
+        res.json({ ok:true });
+    } catch (error) {
+        console.log(error)
+    }
+};
+
+export { user, users, register, login, refreshToken, logout };
